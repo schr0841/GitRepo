@@ -1,5 +1,5 @@
 # Python/R Machine Learning & General Algorithms
 
-This is a repository of Greg Schreiter's programming coursework and projects.
+This is a collection of my programming coursework, projects and other technical writings. 
 
 
