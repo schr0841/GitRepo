@@ -1,4 +1,4 @@
-# Python/R Machine Learning
+# Python/R Data Analysis & Machine Learning
 
 This is a small collection of my programming coursework, projects and other technical writings. 
 
