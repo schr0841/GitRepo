@@ -1,4 +1,4 @@
-# Python/R Machine Learning & General Algorithms
+# Python/R Machine Learning
 
 This is a small collection of my programming coursework, projects and other technical writings. 
 
