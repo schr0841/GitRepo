@@ -1,1 +1,1 @@
-Technical reports discussing analytics solutions
+Technical reports discussing analytics solutions.
