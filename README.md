@@ -12,24 +12,21 @@ This is a small collection of my programming coursework, data analysis projects 
 [Resume](https://github.com/schr0841/GitRepo/tree/master/Resume)
 
 Python skills:
-\begin{itemize}
-\item pandas
-\item numpy
-\item OOP
-\item string processing with regex
-\item SQLite database interface
-\item linear programming with PuLP
-\item simulation with SimPy
-\item basics of data visualization 
-\end{itemize}
+
+* pandas
+* numpy
+* OOP
+* string processing with regex
+* SQLite database interface
+* linear programming with PuLP
+* simulation with SimPy
+* basics of data visualization 
 
 R skills:
-\begin{itemize}
-\item Linear/Logistic Regression
-\item Variable Selection Methods
-\item Classification and Regression Trees
-\item Random Forests
-\item Text Mining
-\item Visualization
-\item General Classification and Clustering Techniques
-\end{itemize}
+* Linear/Logistic Regression
+* Variable Selection Methods
+* Classification and Regression Trees
+* Random Forests
+* Text Mining
+* Visualization
+* General Classification and Clustering Techniques
