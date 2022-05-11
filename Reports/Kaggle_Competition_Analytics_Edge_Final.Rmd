@@ -1,0 +1,301 @@
+---
+title: "Kaggle - Predicting Voting Outcomes"
+author: "Greg Schreiter"
+date: "July 14, 2016"
+output: pdf_document
+---
+
+# Can we accurately predict voting outcomes by using informal polling questions?
+
+Please note: this competition is only open to students of 15.071x - The Analytics Edge.
+
+What predicts voting outcomes? In this competition, you'll be using data from Show of Hands, an informal polling platform for use on mobile devices and the web, to see what aspects and characteristics of people's lives predict how they will be voting for the presidential election.
+
+Show of Hands has been downloaded over 300,000 times across Apple and Android app stores, and users have cast more than 75 million votes. In this problem, we'll use data from thousands of users and one hundred different questions to see which responses predict voting outcomes.
+
+
+## File descriptions
+
+Here is a description of the files you have been provided for this competition: 
+
+\begin{itemize}
+\item train2016.csv - the training set of data that you should use to build your models
+\item test2016.csv - the test set that you will be evaluated on. It contains all of the independent variables, but not the dependent variable.
+\item sampleSubmission2016.csv - a sample submission file in the correct format.
+\item Questions.pdf - the question test corresponding to each of the question codes, as well as the possible answers.
+\end{itemize}
+
+## Data fields
+
+\begin{itemize}
+\item USER\_ID - an anonymous id unique to a given user
+\item YOB - the year of birth of the user
+\item Gender - the gender of the user, either Male or Female
+\item Income - the household income of the user. Either not provided, or one of "under \$25,000", "\$25,001 - \$50,000", "\$50,000 - \$74,999", "\$75,000 - \$100,000", "\$100,001 - \$150,000", or "over \$150,000".
+\item HouseholdStatus - the household status of the user. Either not provided, or one of "Domestic Partners (no kids)", "Domestic Partners (with kids)", "Married (no kids)", "Married (with kids)", "Single (no kids)", or "Single (with kids)".
+\item EducationalLevel - the education level of the user. Either not provided, or one of "Current K-12", "High School Diploma", "Current Undergraduate", "Associate's Degree", "Bachelor's Degree", "Master's Degree", or "Doctoral Degree".
+\item Party - the political party for whom the user intends to vote for. Either "Democrat" or "Republican""
+\item Q124742, Q124122, . . . , Q96024 - 101 different questions that the users were asked on Show of Hands. If the user didn't answer the question, there is a blank. For information about the question text and possible answers, see the file Questions.pdf.
+\end{itemize}
+
+## Load Packages
+
+```{r}
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(pROC)
+library(e1071)
+library(caTools)
+library(flexclust)
+```
+
+
+## Introductory Analysis
+
+We load the training and testing data:
+
+```{r}
+train = read.csv("train2016.csv", na.strings = c("", "NA"), stringsAsFactors = F)
+test = read.csv("test2016.csv", na.strings = c("", "NA"), stringsAsFactors = F)
+```
+
+
+First we perform a complete-case analysis:
+
+```{r}
+CompleteCase=complete.cases(train)
+```
+
+
+We analyze how much data we have retained with this procedure:
+
+```{r}
+sum(CompleteCase)/nrow(train)
+```
+
+
+Since we only have 12.5 percent of the data as complete cases, we will lose too much information by simply deleting the observations with missing values. We will try several procedures for dealing with this: treating missing values as NA's, as well as filling in missing values with imputation or the mode of the variable. We will see what works best based on the results.
+
+In order to use imputation, we must assume our data contains values that are "Missing at random" - when conditioned on all the data we have, any remaining missingness is completely random. 
+
+
+## Data Cleaning
+
+We first take some time to clean the data. This is critical for creating a model with good predictive power, as outliers and infeasible values will make the predictions inaccurate.
+
+```{r}
+#Remove USER_ID, which has no predictive value, from training set
+train$USER_ID <- NULL
+
+# Replace NA's with median value
+train$YOB[is.na(train$YOB)] <- 1983
+test$YOB[is.na(test$YOB)] <- 1983
+train$Gender[is.na(train$Gender)] <- as.character("Female")
+test$Gender[is.na(test$Gender)] <- as.character("Female")
+train$Income[is.na(train$Income)] <- as.character("$75,000 - $100,000")
+test$Income[is.na(test$Income)] <- as.character("$75,000 - $100,000")
+train$HouseholdStatus[is.na(train$HouseholdStatus)] <- as.character("Single (no kids)")
+test$HouseholdStatus[is.na(test$HouseholdStatus)] <- as.character("Single (no kids)")
+train$EducationLevel[is.na(train$EducationLevel)] <- as.character("Bachelor's Degree")
+test$EducationLevel[is.na(test$EducationLevel)] <- as.character("Bachelor's Degree")
+
+# Remove YOB outliers and infeasible values
+train <- train[train$YOB >= 1935 & train$YOB <= 2000,]
+
+# Set unanswered questions to have character value 'not_answered'
+train[is.na(train)] <- as.character('not_answered')
+test[is.na(test)] <- as.character('not_answered')
+
+# Convert Party to a factor variable
+train$Party <- as.factor(train$Party)
+
+# Write the train and test sets to a file for later use
+write.csv(train, "imptrain.csv", row.names=FALSE)
+write.csv(test, "imptest.csv", row.names=FALSE)
+
+# Read in the data as factor variables
+imptrain = read.csv("imptrain.csv")
+imptest = read.csv("imptest.csv")
+```
+
+
+## First Model: CART
+
+We first start with a CART model. This model will show us which variables are most important:
+
+```{r}
+CART=rpart(Party ~ ., data=train, method="class" )
+
+rpart.plot(CART)
+```
+
+We get 3 important variables from this selection process: Q109244 (Are you a feminist?), Q113181 (Do you meditate or pray on a regular basis?), and Q115611 (do you own a gun?). This makes sense, since these are some "hot-button" issues that help people decide which political party is right for them.
+
+## Logistic Regression Models
+
+```{r}
+logm1=glm(Party ~ Q109244 + Q113181 + Q115611, family="binomial", 
+          data = train)
+logm1pred=predict(logm1, newdata=test, type="response")
+logm1p=as.data.frame(cut(logm1pred, breaks=c(0,0.5,1), 
+                         labels=c("Democrat", "Republican")))
+lm1=data.frame(USER_ID = test$USER_ID, Predictions = logm1p)
+colnames(lm1) <- c("USER_ID", "Predictions")
+write.csv(lm1, "lm1.csv", row.names=FALSE)
+```
+
+This simple Logistic model gives us an accuracy of 0.62644 on the private leaderboard. Now we try adding one additional predictor, Income:
+
+
+```{r}
+logm2=glm(Party ~ Q109244 + Q113181 + Q115611 + Income, 
+          family="binomial", data = train)
+logm2pred=predict(logm2, newdata=test, type="response")
+logm2p=as.data.frame(cut(logm2pred, breaks=c(0,0.5,1), 
+                         labels=c("Democrat", "Republican")))
+lm2=data.frame(USER_ID = test$USER_ID, Predictions = logm2p)
+colnames(lm2) <- c("USER_ID", "Predictions")
+write.csv(lm2, "lm2.csv", row.names=FALSE)
+```
+
+This yields a large increase in accuracy: 0.63937 on the private leaderboard. How does a model with all predictors perform?
+
+```{r}
+logm3=glm(Party ~ ., family="binomial", data = train)
+logm3pred=predict(logm3, newdata=test, type="response")
+logm3p=as.data.frame(cut(logm3pred, breaks=c(0,0.5,1), 
+                         labels=c("Democrat", "Republican")))
+lm3=data.frame(USER_ID = test$USER_ID, Predictions = logm3p)
+colnames(lm3) <- c("USER_ID", "Predictions")
+write.csv(lm3, "lm3.csv", row.names=FALSE)
+```
+
+Not as well: Accuracy of only 0.61925.
+
+## Computer Selection of Important Variables
+
+While manual selection of variables is a valuable tool, we may miss some important variables this way. We use the \textit{caret} package to figure out which variables are the most important, based on repeated cross-validation:
+
+```{r}
+control=trainControl(method="repeatedcv", number=5, repeats=3)
+model=train(Party ~ . , data=imptrain, method="lvq", 
+            preProcess="scale", trControl=control)
+importance=varImp(model, scale=F)
+print(importance)
+```
+
+Now we use a similar procedure to select the model for us. We can also specify the type of model we want to use, so we will choose random forests to see if that gives us any improvement:
+
+```{r}
+# Using caret package to select predictors for random forest model using cross validation
+control=rfeControl(functions=rfFuncs, method="cv", number=10)
+results=rfe(imptrain[,c(1:5, 7:107)], imptrain$Party, 
+            rfeControl=control)
+print(results)
+predictors(results)
+plot(results)
+```
+
+Interestingly, this process tells us that we get the highest accuracy by using all other variables as predictors. We will investigate this further in the following section.
+
+
+
+## Random Forest Models
+
+Using the information that the highest accuracy RF model was obtained by using all of the available predictors, we will now attempt to tune both the \textit{mtry} and \textit{ntree} parameters.
+
+
+
+```{r}
+# Tune mtry parameter
+control <- trainControl(method="repeatedcv", number=5, 
+                        repeats=2, search="random")
+set.seed(1999)
+mtry <- sqrt(ncol(imptrain))
+rf_random <- train(Party~., data=imptrain, method="rf", 
+                   tuneLength=5, trControl=control)
+print(rf_random)
+plot(rf_random)
+```
+
+The optimal value for mtry was found to be 105. Next, we use a for loop to iterate over the values of ntree:
+
+
+
+```{r}
+# Split Training set
+set.seed(123)
+xt=sample.split(imptrain$Party, SplitRatio=0.7 )
+train1=subset(imptrain, xt==TRUE)
+train2=subset(imptrain, xt==FALSE)
+
+# Tune ntree parameter
+Acc=matrix(ncol=1, nrow=4000)
+for (i in seq(1,4000,by=500)){
+  rf=randomForest(Party ~ ., data = train1, mtry=105, ntree=i)
+  pred=predict(rf, newdata=train2)
+  tab=table(train2$Party, pred)
+  Acc[i]=sum(diag(tab))/sum(tab)
+  
+}
+Acc <- Acc[!is.na(Acc)]
+max(Acc)
+which.max(Acc)
+plot(Acc)
+```
+
+The value of ntree that produces the maximum accuracy is $1+500 \times 7 = 3501$.
+
+Using these two parameter values, we construct our first Random Forest model using all predictors:
+
+
+```{r}
+rf1=randomForest(Party ~ ., data = imptrain, mtry=105, ntree=3501)
+
+rfpred1=predict(rf1, newdata=imptest)
+
+rfm1 = data.frame(USER_ID = test$USER_ID, Predictions = rfpred1)
+
+write.csv(rfm1, "rfm1.csv", row.names=FALSE)
+
+```
+
+
+This model gives us a score of 0.63937 on the private leaderboard. Now we will try with a simpler, 4-predictor model:
+
+
+```{r}
+# Tune mtry parameter
+control <- trainControl(method="repeatedcv", number=5, repeats=2, search="random")
+set.seed(1999)
+mtry <- sqrt(ncol(imptrain))
+rf_random <- train(Party ~ Q109244 + Q113181 + Q115611 + Income, 
+                   data=imptrain, method="rf", tuneLength=5, trControl=control)
+print(rf_random)
+plot(rf_random)
+```
+
+```{r}
+rf2=randomForest(Party ~ Q109244 + Q113181 + Q115611 + Income, 
+                 data = imptrain, mtry=5, ntree=3501)
+
+rfpred2=predict(rf2, newdata=imptest)
+
+rfm2 = data.frame(USER_ID = test$USER_ID, Predictions = rfpred2)
+
+write.csv(rfm2, "rfm2.csv", row.names=FALSE)
+
+```
+
+However, this model only obtains 0.63075 accuracy on the private leaderboard.
+
+
+### Conclusion
+
+The best we could do was an accuracy of 0.63937 on the private leaderboard, with both Random Forest and logistic regression models. This places us in the top 10 percent of the competition.
+
+Additional ideas for further improving accuracy: cluster-then-predict, additional types of models such as gradient boosting, imputing the demographic variables with MICE instead of filling in with median values.
+
+
