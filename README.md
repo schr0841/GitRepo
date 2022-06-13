@@ -2,6 +2,7 @@
 
 This is a small collection of my programming coursework, data analysis projects and other technical writings. 
 
+[CSE 6242 Course Project](http://crisifivis.nuscri.org/)
 
 [Python](https://github.com/schr0841/GitRepo/tree/master/Python)
 
