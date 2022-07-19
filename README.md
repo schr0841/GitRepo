@@ -1,6 +1,6 @@
 # Python/R Data Analysis & Machine Learning
 
-This is a small collection of my programming coursework, data analysis projects and other technical writings, mainly from my M.S. in Analytics from Georgia Institute of Technology. 
+This is a small collection of my programming coursework, data analysis projects and other technical writings, mainly from my completed M.S. in Analytics from Georgia Institute of Technology. 
 
 [CSE 6242 Course Project](http://crisifivis.nuscri.org/)
 
